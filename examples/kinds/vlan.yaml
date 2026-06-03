@@ -1,0 +1,10 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Vlan
+metadata:
+  name: vlan-management
+spec:
+  site: { kind: Site, name: home-fishlake }
+  zone: { kind: NetworkZone, name: zone-management }
+  vlanId: 10
+  vlanName: MGMT
+  description: Management VLAN for hypervisors, switches, IPMI.

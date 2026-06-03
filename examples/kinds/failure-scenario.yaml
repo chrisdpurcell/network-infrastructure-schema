@@ -1,0 +1,22 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: FailureScenario
+metadata:
+  name: fs-k7plus-down
+spec:
+  description: GMK K7 Plus hypervisor fails; home-LAN services lost.
+  fault:
+    type: host-down
+    targets:
+      - { kind: Host, name: host-k7plus }
+  expected:
+    unavailableServices:
+      - { kind: Service, name: svc-pihole }
+      - { kind: Service, name: svc-homeassistant }
+    failover:
+      - service: { kind: Service, name: svc-pihole }
+        to: { kind: Device, name: dev-opnsense }
+        automatic: true
+    maxOutageMinutes: 15
+  validation:
+    tool: manual
+    notes: DNS fails over to OPNsense Unbound; HA has no failover (accepted).

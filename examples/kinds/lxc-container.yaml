@@ -1,0 +1,30 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: LxcContainer
+metadata:
+  name: lxc-pihole
+  title: Pi-hole + unbound
+spec:
+  host: { kind: Host, name: host-k7plus }
+  proxmoxNode: k7plus
+  vmId: 120
+  ostemplate: local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst
+  osType: debian
+  unprivileged: true
+  features:
+    nesting: false
+  cores: 2
+  memoryMb: 1024
+  swapMb: 512
+  cpuUnits: 1024
+  rootfs:
+    id: rootfs
+    datastore: local-lvm
+    sizeGb: 8
+  networkInterfaces:
+    - name: eth0
+      bridge: vmbr0
+      vlan: 10
+      ipv4: { address: 10.10.10.30/24, gateway: 10.10.10.1 }
+  sshKeysRef: { ref: secret-ssh-authorized }
+  startOnBoot: true
+  tags: [home, dns]

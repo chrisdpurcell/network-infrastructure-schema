@@ -1,0 +1,16 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: MonitoringCheck
+metadata:
+  name: check-pihole-dns
+spec:
+  target: { kind: Service, name: svc-pihole }
+  type: dns
+  interval: 30s
+  timeout: 5s
+  severity: critical
+  parameters:
+    query: pihole.home.luminous3d.example
+    port: 53
+  notify:
+    - ntfy:home-alerts
+  description: Confirms Pi-hole answers DNS queries.

@@ -1,0 +1,134 @@
+# Single-site manifest: Fish Lake home LAN.
+# Hosts + VLANs + prefixes + services in one InfraManifest bundle.
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: InfraManifest
+metadata:
+  name: home-fishlake-baseline
+  title: Home LAN baseline desired state
+spec:
+  items:
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Site
+      metadata: { name: home-fishlake }
+      spec:
+        displayName: Home (Fish Lake)
+        role: home
+        location: { city: Fish Lake, region: Indiana, country: US, timezone: America/Indiana/Indianapolis }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: NetworkZone
+      metadata: { name: zone-management }
+      spec: { site: { kind: Site, name: home-fishlake }, trustLevel: management }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: NetworkZone
+      metadata: { name: zone-servers }
+      spec: { site: { kind: Site, name: home-fishlake }, trustLevel: trusted }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Vlan
+      metadata: { name: vlan-management }
+      spec: { site: { kind: Site, name: home-fishlake }, zone: { kind: NetworkZone, name: zone-management }, vlanId: 10, vlanName: MGMT }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Vlan
+      metadata: { name: vlan-servers }
+      spec: { site: { kind: Site, name: home-fishlake }, zone: { kind: NetworkZone, name: zone-servers }, vlanId: 20, vlanName: SERVERS }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Prefix
+      metadata: { name: prefix-management-v4 }
+      spec:
+        cidr: 10.10.10.0/24
+        site: { kind: Site, name: home-fishlake }
+        vlan: { kind: Vlan, name: vlan-management }
+        role: management
+        gateway: 10.10.10.1
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Prefix
+      metadata: { name: prefix-servers-v4 }
+      spec:
+        cidr: 10.10.20.0/24
+        site: { kind: Site, name: home-fishlake }
+        vlan: { kind: Vlan, name: vlan-servers }
+        role: server
+        gateway: 10.10.20.1
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Device
+      metadata: { name: dev-k7plus }
+      spec: { site: { kind: Site, name: home-fishlake }, role: server, manufacturer: GMKtec, model: NucBox K7 Plus, platform: proxmox, managementIp: 10.10.10.20 }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: ProxmoxCluster
+      metadata: { name: pve-home }
+      spec:
+        site: { kind: Site, name: home-fishlake }
+        nodes: [ { kind: Host, name: host-k7plus } ]
+        quorumExpected: 1
+        apiEndpoint: https://10.10.10.20:8006/
+        tokenRef: { ref: secret-pve-token }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Host
+      metadata: { name: host-k7plus }
+      spec:
+        site: { kind: Site, name: home-fishlake }
+        cluster: { kind: ProxmoxCluster, name: pve-home }
+        device: { kind: Device, name: dev-k7plus }
+        role: hypervisor
+        proxmoxNode: k7plus
+        cpuCores: 12
+        memoryMb: 65536
+        managementIp: 10.10.10.20
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: LxcContainer
+      metadata: { name: lxc-pihole }
+      spec:
+        host: { kind: Host, name: host-k7plus }
+        proxmoxNode: k7plus
+        vmId: 120
+        ostemplate: local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst
+        osType: debian
+        unprivileged: true
+        cores: 2
+        memoryMb: 1024
+        rootfs: { id: rootfs, datastore: local-lvm, sizeGb: 8 }
+        networkInterfaces:
+          - { name: eth0, bridge: vmbr0, vlan: 10, ipv4: { address: 10.10.10.30/24, gateway: 10.10.10.1 } }
+        sshKeysRef: { ref: secret-ssh-authorized }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Service
+      metadata: { name: svc-pihole }
+      spec:
+        runsOn: { kind: LxcContainer, name: lxc-pihole }
+        serviceType: dns
+        criticality: critical
+        ports:
+          - { protocol: udp, port: 53 }
+          - { protocol: tcp, port: 53 }
+        vip: 10.10.10.30
+        exposure: { level: lan, approved: true, approvedBy: chris, reason: LAN resolver only }
+        backupClass: { kind: BackupClass, name: backup-critical }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: BackupClass
+      metadata: { name: backup-critical }
+      spec:
+        schedule: "0 2 * * *"
+        target: pbs:home-main
+        restoreTarget: pbs:home-main -> host-k7plus
+        retention: { daily: 7, weekly: 4, monthly: 6 }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: SecretRef
+      metadata: { name: secret-pve-token }
+      spec: { provider: openbao, path: kv/data/infra/proxmox/home, keys: [api_token_id, api_token_secret] }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: SecretRef
+      metadata: { name: secret-ssh-authorized }
+      spec: { provider: openbao, path: kv/data/infra/ssh, keys: [authorized_keys] }

@@ -1,0 +1,9 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: NetworkZone
+metadata:
+  name: zone-management
+spec:
+  site: { kind: Site, name: home-fishlake }
+  trustLevel: management
+  defaultDeny: true
+  description: Out-of-band and infrastructure management plane.

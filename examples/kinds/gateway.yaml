@@ -1,0 +1,10 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Gateway
+metadata:
+  name: gw-management
+spec:
+  prefix: { kind: Prefix, name: prefix-management-v4 }
+  address: 10.10.10.1
+  device: { kind: Device, name: dev-opnsense }
+  interface: { kind: Interface, name: if-opnsense-mgmt }
+  description: Default gateway for the management subnet.

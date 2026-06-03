@@ -1,0 +1,13 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: ProxmoxCluster
+metadata:
+  name: pve-home
+spec:
+  site: { kind: Site, name: home-fishlake }
+  nodes:
+    - { kind: Host, name: host-k7plus }
+  quorumExpected: 1
+  apiEndpoint: https://10.10.10.20:8006/
+  tokenRef:
+    ref: secret-pve-token
+  description: Single-node home Proxmox (no HA quorum).

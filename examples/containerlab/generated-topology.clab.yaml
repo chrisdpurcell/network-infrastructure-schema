@@ -1,0 +1,83 @@
+# =============================================================================
+# GENERATED ARTIFACT -- do not hand-edit.
+# Source of truth: examples/manifests/site-home.yaml (+ zone-iot, zone-guest).
+# Generator: Containerlab topology generator (see generators/containerlab-rules.md).
+#
+# Router-on-a-stick projection of the home site: the OPNsense firewall is the
+# inter-zone forwarding element under test, and each NetworkZone is rendered as
+# a synthetic linux endpoint so Batfish can assert reachability intent -- in
+# particular that the iot and guest endpoints cannot reach the management
+# endpoint (management-isolation policy).
+#
+# ADAPTATION POINTS:
+#   * OPNsense has no native Containerlab kind; it is rendered as kind: linux
+#     with an FRR image. Swap to a vendor kind/image for higher-fidelity tests.
+#   * Firewall/routing rules are expected in startup-config files rendered from
+#     FirewallPolicy/AllowedFlow objects; those paths are referenced below.
+# =============================================================================
+name: luminous3d-home
+
+mgmt:
+  # Dedicated simulation management network, deliberately NOT the real
+  # 10.10.10.0/24 management Prefix, to avoid address overlap in the sim.
+  network: clab-luminous3d-home
+  ipv4-subnet: 172.20.20.0/24
+
+topology:
+  defaults:
+    kind: linux
+
+  kinds:
+    linux:
+      image: ghcr.io/srl-labs/network-multitool:latest
+
+  nodes:
+    # Device/dev-opnsense (role: firewall) -> inter-zone router under test.
+    dev-opnsense:
+      kind: linux
+      image: quay.io/frrouting/frr:9.1.0
+      mgmt-ipv4: 172.20.20.2
+      startup-config: configs/dev-opnsense.frr.conf
+      labels:
+        infra-kind: Device
+        infra-role: firewall
+        infra-site: home-fishlake
+
+    # NetworkZone/zone-management -> management-plane test endpoint.
+    zone-management:
+      kind: linux
+      mgmt-ipv4: 172.20.20.11
+      labels:
+        infra-kind: NetworkZone
+        infra-trust: management
+
+    # NetworkZone/zone-servers -> trusted server test endpoint.
+    zone-servers:
+      kind: linux
+      mgmt-ipv4: 172.20.20.12
+      labels:
+        infra-kind: NetworkZone
+        infra-trust: trusted
+
+    # NetworkZone/zone-iot -> low-trust IoT test endpoint.
+    zone-iot:
+      kind: linux
+      mgmt-ipv4: 172.20.20.13
+      labels:
+        infra-kind: NetworkZone
+        infra-trust: iot
+
+    # NetworkZone/zone-guest -> low-trust guest test endpoint.
+    zone-guest:
+      kind: linux
+      mgmt-ipv4: 172.20.20.14
+      labels:
+        infra-kind: NetworkZone
+        infra-trust: guest
+
+  links:
+    # Each zone hangs off the firewall on its own interface (router-on-a-stick).
+    - endpoints: ["dev-opnsense:eth1", "zone-management:eth1"]
+    - endpoints: ["dev-opnsense:eth2", "zone-servers:eth1"]
+    - endpoints: ["dev-opnsense:eth3", "zone-iot:eth1"]
+    - endpoints: ["dev-opnsense:eth4", "zone-guest:eth1"]

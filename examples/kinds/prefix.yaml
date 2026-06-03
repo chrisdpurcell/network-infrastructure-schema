@@ -1,0 +1,11 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Prefix
+metadata:
+  name: prefix-management-v4
+spec:
+  cidr: 10.10.10.0/24
+  site: { kind: Site, name: home-fishlake }
+  vlan: { kind: Vlan, name: vlan-management }
+  role: management
+  gateway: 10.10.10.1
+  description: IPv4 management subnet.

@@ -1,0 +1,25 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Service
+metadata:
+  name: svc-pihole
+  title: Pi-hole DNS
+spec:
+  runsOn: { kind: LxcContainer, name: lxc-pihole }
+  serviceType: dns
+  criticality: critical
+  ports:
+    - { name: dns-udp, protocol: udp, port: 53 }
+    - { name: dns-tcp, protocol: tcp, port: 53 }
+    - { name: web, protocol: tcp, port: 80 }
+  vip: 10.10.10.30
+  fqdn: pihole.home.luminous3d.example
+  exposure:
+    level: lan
+    approved: true
+    approvedBy: chris
+    reason: LAN-only resolver; never exposed to WAN.
+  backupClass: { kind: BackupClass, name: backup-critical }
+  healthcheck: { kind: MonitoringCheck, name: check-pihole-dns }
+  implementation:
+    type: native
+    unitName: pihole-FTL.service

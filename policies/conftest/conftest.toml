@@ -1,0 +1,15 @@
+# Conftest configuration for the desired-state guardrail policies.
+#
+# Copy this file to the repository root (as ./conftest.toml) so that a bare
+# `conftest test examples/manifests/site-home.yaml` picks up the right policy
+# directory and the mandatory --combine behavior automatically. CI calls the
+# flags explicitly (see ci/pipeline.md), so this file is a developer
+# convenience, not a dependency.
+policy = ["policies/opa"]
+
+# --combine is REQUIRED: the guardrails are cross-object and must see the whole
+# evaluated set as a single `input` array. See policies/opa/lib/objects.rego.
+combine = true
+
+# Fail the run on any policy with a parse/compile problem rather than skipping.
+fail-on-warn = false

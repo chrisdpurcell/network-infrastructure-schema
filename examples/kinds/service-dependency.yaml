@@ -1,0 +1,11 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: ServiceDependency
+metadata:
+  name: dep-homeassistant-needs-dns
+spec:
+  from: { kind: Service, name: svc-homeassistant }
+  to: { kind: Service, name: svc-pihole }
+  type: requires
+  protocol: udp
+  port: 53
+  description: Home Assistant relies on Pi-hole for name resolution.

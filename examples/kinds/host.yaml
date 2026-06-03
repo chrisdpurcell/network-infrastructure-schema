@@ -1,0 +1,16 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Host
+metadata:
+  name: host-k7plus
+  title: GMK NucBox K7 Plus
+spec:
+  site: { kind: Site, name: home-fishlake }
+  cluster: { kind: ProxmoxCluster, name: pve-home }
+  device: { kind: Device, name: dev-k7plus }
+  role: hypervisor
+  proxmoxNode: k7plus
+  cpuCores: 12
+  memoryMb: 65536
+  managementIp: 10.10.10.20
+  storage:
+    - { id: local-lvm, type: lvmthin, sizeGb: 1800 }

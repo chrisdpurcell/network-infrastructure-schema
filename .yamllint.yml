@@ -1,0 +1,25 @@
+# yamllint configuration for the desired-state repository.
+#
+# The examples use a compact "flow" style with one space inside braces and
+# brackets ({ kind: Site, name: x }, [ { ... } ]) because it reads well for
+# both humans and LLMs and keeps single-object specs to a few lines. This
+# config permits that style; everything else stays close to yamllint defaults.
+extends: default
+
+rules:
+  # Compact single-object specs run long by design; allow generous lines.
+  line-length:
+    max: 200
+    level: warning
+  # One space inside flow collections is the chosen house style.
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1
+  # Objects start with `apiVersion:`, not `---`.
+  document-start: disable
+  # `on:`/`yes:`-style keys are not used as booleans here.
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1

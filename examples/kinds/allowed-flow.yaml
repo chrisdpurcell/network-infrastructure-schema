@@ -1,0 +1,15 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: AllowedFlow
+metadata:
+  name: flow-iot-to-ha-mqtt
+spec:
+  policy: { kind: FirewallPolicy, name: fw-iot-egress }
+  source:
+    zone: { kind: NetworkZone, name: zone-iot }
+  destination:
+    service: { kind: Service, name: svc-homeassistant }
+  protocol: tcp
+  ports: [1883]
+  action: allow
+  logging: true
+  description: Permit IoT devices to reach the MQTT broker only.

@@ -1,0 +1,16 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Interface
+metadata:
+  name: if-opnsense-mgmt
+spec:
+  device: { kind: Device, name: dev-opnsense }
+  ifName: igc0
+  type: physical
+  enabled: true
+  mode: tagged
+  untaggedVlan: { kind: Vlan, name: vlan-management }
+  taggedVlans:
+    - { kind: Vlan, name: vlan-servers }
+  addresses:
+    - 10.10.10.1/24
+  mtu: 1500

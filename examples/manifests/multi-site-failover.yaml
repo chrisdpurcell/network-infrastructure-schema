@@ -1,0 +1,126 @@
+# Multi-site manifest: home + offsite, with cross-site failover and a
+# FailureScenario describing expected behavior when the home host dies.
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: InfraManifest
+metadata:
+  name: multi-site-failover
+  title: Home + Helsinki offsite with failover modeling
+spec:
+  items:
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Site
+      metadata: { name: home-fishlake }
+      spec: { role: home, displayName: Home (Fish Lake) }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Site
+      metadata: { name: offsite-helsinki }
+      spec:
+        role: offsite
+        displayName: Hetzner EX130-R (Helsinki)
+        location: { city: Helsinki, country: FI, timezone: Europe/Helsinki }
+        notes: Offsite/batch/unattended workloads. Not for latency-critical services.
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Device
+      metadata: { name: dev-ex130r }
+      spec: { site: { kind: Site, name: offsite-helsinki }, role: server, manufacturer: Hetzner, model: EX130-R, platform: proxmox }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: ProxmoxCluster
+      metadata: { name: pve-offsite }
+      spec:
+        site: { kind: Site, name: offsite-helsinki }
+        nodes: [ { kind: Host, name: host-ex130r } ]
+        quorumExpected: 1
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Host
+      metadata: { name: host-k7plus }
+      spec: { site: { kind: Site, name: home-fishlake }, role: hypervisor, proxmoxNode: k7plus }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Host
+      metadata: { name: host-ex130r }
+      spec: { site: { kind: Site, name: offsite-helsinki }, cluster: { kind: ProxmoxCluster, name: pve-offsite }, role: hypervisor, proxmoxNode: ex130r }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: LxcContainer
+      metadata: { name: lxc-pihole }
+      spec:
+        host: { kind: Host, name: host-k7plus }
+        vmId: 120
+        ostemplate: local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst
+        cores: 2
+        memoryMb: 1024
+        rootfs: { id: rootfs, datastore: local-lvm, sizeGb: 8 }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: LxcContainer
+      metadata: { name: lxc-pihole-offsite }
+      spec:
+        host: { kind: Host, name: host-ex130r }
+        vmId: 220
+        ostemplate: local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst
+        cores: 2
+        memoryMb: 1024
+        rootfs: { id: rootfs, datastore: local-lvm, sizeGb: 8 }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Service
+      metadata: { name: svc-pihole }
+      spec:
+        runsOn: { kind: LxcContainer, name: lxc-pihole }
+        serviceType: dns
+        criticality: critical
+        ports: [ { protocol: udp, port: 53 } ]
+        exposure: { level: lan, approved: true, approvedBy: chris, reason: Primary LAN resolver }
+        backupClass: { kind: BackupClass, name: backup-critical }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Service
+      metadata: { name: svc-pihole-offsite }
+      spec:
+        runsOn: { kind: LxcContainer, name: lxc-pihole-offsite }
+        serviceType: dns
+        criticality: high
+        ports: [ { protocol: udp, port: 53 } ]
+        exposure: { level: vpn, approved: true, approvedBy: chris, reason: Reachable over Tailscale as secondary resolver }
+        backupClass: { kind: BackupClass, name: backup-critical }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: ServiceDependency
+      metadata: { name: dep-pihole-failover }
+      spec:
+        from: { kind: Service, name: svc-pihole }
+        to: { kind: Service, name: svc-pihole-offsite }
+        type: soft-requires
+        description: Offsite resolver is the standby for the primary.
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: BackupClass
+      metadata: { name: backup-critical }
+      spec:
+        schedule: "0 2 * * *"
+        target: pbs:home-main
+        restoreTarget: pbs:home-main -> host-ex130r
+        retention: { daily: 7, weekly: 4 }
+
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: FailureScenario
+      metadata: { name: fs-home-host-down }
+      spec:
+        description: Home hypervisor fails; primary DNS lost, failover to offsite.
+        fault:
+          type: host-down
+          targets: [ { kind: Host, name: host-k7plus } ]
+        expected:
+          unavailableServices: [ { kind: Service, name: svc-pihole } ]
+          failover:
+            - service: { kind: Service, name: svc-pihole }
+              to: { kind: Service, name: svc-pihole-offsite }
+              automatic: false
+          maxOutageMinutes: 30
+        validation:
+          tool: batfish
+          notes: Verify clients can still resolve via the Tailscale-reachable offsite resolver.

@@ -1,0 +1,2023 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.luminous3d.example/infra/v1alpha1/infra.schema.json",
+  "title": "Luminous3D Desired-State Infrastructure Model",
+  "description": "Canonical validation schema for hand-authored desired-state YAML. A document is either a single Object or an InfraManifest Bundle. Multi-document YAML streams are split by the harness and each document is validated against this schema.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Object"
+    },
+    {
+      "$ref": "#/$defs/Bundle"
+    }
+  ],
+  "$defs": {
+    "Slug": {
+      "type": "string",
+      "description": "DNS-1123 label: lowercase alphanumerics and '-', 1-63 chars.",
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+      "minLength": 1,
+      "maxLength": 63
+    },
+    "ApiVersion": {
+      "type": "string",
+      "description": "Group/version, e.g. infra.luminous3d.example/v1alpha1.",
+      "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?/v[0-9]+((alpha|beta)[0-9]+)?$"
+    },
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "Site",
+        "NetworkZone",
+        "Vlan",
+        "Prefix",
+        "Gateway",
+        "Device",
+        "Interface",
+        "ProxmoxCluster",
+        "Host",
+        "VirtualMachine",
+        "LxcContainer",
+        "Service",
+        "ServiceDependency",
+        "FirewallPolicy",
+        "AllowedFlow",
+        "BackupClass",
+        "SecretRef",
+        "MonitoringCheck",
+        "FailureScenario"
+      ]
+    },
+    "Labels": {
+      "type": "object",
+      "description": "Open key/value extension point. Keys are slug-like; values free-form strings.",
+      "propertyNames": {
+        "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_./-]{0,61}[a-zA-Z0-9])?$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "Metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Slug"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Slug",
+          "default": "default"
+        },
+        "uid": {
+          "type": "string",
+          "description": "Optional stable identifier. NOT used for authored references; refs use kind+name."
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Owning person/team, free-form."
+        },
+        "labels": {
+          "$ref": "#/$defs/Labels"
+        },
+        "annotations": {
+          "$ref": "#/$defs/Labels"
+        }
+      }
+    },
+    "ObjectRef": {
+      "type": "object",
+      "description": "Reference to another object by composite key (kind + name [+ namespace]).",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "name": {
+          "$ref": "#/$defs/Slug"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Slug"
+        }
+      }
+    },
+    "SecretRefInline": {
+      "type": "object",
+      "description": "Inline pointer to a secret stored in an external backend. NEVER carries the secret value. Either references a SecretRef object by name, or names provider+path directly.",
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/Slug",
+          "description": "Name of a SecretRef-kind object."
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openbao",
+            "vault",
+            "sops",
+            "onepassword",
+            "env",
+            "file"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "description": "Backend path/identifier, e.g. kv/data/infra/pve."
+        },
+        "key": {
+          "type": "string",
+          "description": "Field within the secret to select."
+        }
+      },
+      "not": {
+        "required": [
+          "value"
+        ]
+      },
+      "anyOf": [
+        {
+          "required": [
+            "ref"
+          ]
+        },
+        {
+          "required": [
+            "provider",
+            "path"
+          ]
+        }
+      ]
+    },
+    "Cidr": {
+      "type": "string",
+      "description": "IPv4 or IPv6 network in CIDR notation.",
+      "anyOf": [
+        {
+          "pattern": "^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)/(3[0-2]|[12]?\\d)$"
+        },
+        {
+          "pattern": "^([0-9a-fA-F:]+)/(12[0-8]|1[01]\\d|[1-9]?\\d)$"
+        }
+      ]
+    },
+    "IpAddress": {
+      "type": "string",
+      "anyOf": [
+        {
+          "format": "ipv4"
+        },
+        {
+          "format": "ipv6"
+        }
+      ]
+    },
+    "IpOrDhcp": {
+      "anyOf": [
+        {
+          "const": "dhcp"
+        },
+        {
+          "$ref": "#/$defs/Cidr"
+        }
+      ]
+    },
+    "MacAddress": {
+      "type": "string",
+      "pattern": "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"
+    },
+    "Port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "L4Protocol": {
+      "type": "string",
+      "enum": [
+        "tcp",
+        "udp",
+        "sctp",
+        "icmp",
+        "any"
+      ]
+    },
+    "Criticality": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "TrustLevel": {
+      "type": "string",
+      "enum": [
+        "management",
+        "trusted",
+        "user",
+        "guest",
+        "iot",
+        "dmz",
+        "untrusted"
+      ]
+    },
+    "Duration": {
+      "type": "string",
+      "description": "Go-style duration, e.g. 30s, 5m, 1h, 24h.",
+      "pattern": "^[0-9]+(ms|s|m|h|d)$"
+    },
+    "PortSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "port"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "protocol": {
+          "$ref": "#/$defs/L4Protocol"
+        },
+        "port": {
+          "$ref": "#/$defs/Port"
+        }
+      }
+    },
+    "IpConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/IpOrDhcp"
+        },
+        "gateway": {
+          "$ref": "#/$defs/IpAddress"
+        }
+      }
+    },
+    "GuestNic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "bridge"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Guest-side name, e.g. eth0/net0/veth0."
+        },
+        "bridge": {
+          "type": "string",
+          "description": "Proxmox bridge, e.g. vmbr0."
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "virtio",
+            "e1000",
+            "rtl8139",
+            "vmxnet3"
+          ],
+          "default": "virtio"
+        },
+        "mac": {
+          "$ref": "#/$defs/MacAddress"
+        },
+        "mtu": {
+          "type": "integer",
+          "minimum": 576,
+          "maximum": 9000
+        },
+        "vlan": {
+          "description": "Tagged VLAN: either a VLAN id (1-4094) or an ObjectRef to a Vlan object.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4094
+            },
+            {
+              "$ref": "#/$defs/ObjectRef"
+            }
+          ]
+        },
+        "ipv4": {
+          "$ref": "#/$defs/IpConfig"
+        },
+        "ipv6": {
+          "$ref": "#/$defs/IpConfig"
+        },
+        "firewall": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "DiskSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "datastore",
+        "sizeGb"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Logical disk id, e.g. scsi0/virtio0/rootfs."
+        },
+        "datastore": {
+          "type": "string"
+        },
+        "sizeGb": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "interface": {
+          "type": "string",
+          "enum": [
+            "scsi",
+            "virtio",
+            "sata",
+            "ide"
+          ]
+        },
+        "iothread": {
+          "type": "boolean"
+        },
+        "discard": {
+          "type": "boolean"
+        },
+        "ssd": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MountPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "volume": {
+          "type": "string",
+          "description": "Datastore id (managed volume) or host path (bind mount)."
+        },
+        "path": {
+          "type": "string",
+          "description": "In-guest mount path."
+        },
+        "sizeGb": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backup": {
+          "type": "boolean",
+          "default": false
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "bind": {
+          "type": "boolean",
+          "default": false,
+          "description": "True for host bind mount (requires root@pam)."
+        }
+      }
+    },
+    "ExposureDecision": {
+      "type": "object",
+      "description": "Explicit, auditable decision about how far a service is reachable.",
+      "additionalProperties": false,
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "lan",
+            "vpn",
+            "public"
+          ]
+        },
+        "approved": {
+          "type": "boolean",
+          "default": false
+        },
+        "approvedBy": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "FlowEndpoint": {
+      "type": "object",
+      "description": "One side of an allowed flow. At least one selector must be set.",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "zone": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "prefix": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "cidr": {
+          "$ref": "#/$defs/Cidr"
+        },
+        "service": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "any": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SiteSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role"
+      ],
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "home",
+            "offsite",
+            "cloud",
+            "edge"
+          ]
+        },
+        "location": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "facility": {
+              "type": "string"
+            },
+            "city": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string"
+            },
+            "country": {
+              "type": "string"
+            },
+            "timezone": {
+              "type": "string"
+            }
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "NetworkZoneSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "site",
+        "trustLevel"
+      ],
+      "properties": {
+        "site": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "trustLevel": {
+          "$ref": "#/$defs/TrustLevel"
+        },
+        "defaultDeny": {
+          "type": "boolean",
+          "default": true
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "VlanSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "site",
+        "vlanId",
+        "vlanName"
+      ],
+      "properties": {
+        "site": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "zone": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "vlanId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4094
+        },
+        "vlanName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "PrefixSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cidr"
+      ],
+      "properties": {
+        "cidr": {
+          "$ref": "#/$defs/Cidr"
+        },
+        "site": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "vlan": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "management",
+            "server",
+            "user",
+            "guest",
+            "iot",
+            "dmz",
+            "loopback",
+            "transit",
+            "container",
+            "storage"
+          ]
+        },
+        "gateway": {
+          "$ref": "#/$defs/IpAddress"
+        },
+        "dhcp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "ranges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "start",
+                  "end"
+                ],
+                "properties": {
+                  "start": {
+                    "$ref": "#/$defs/IpAddress"
+                  },
+                  "end": {
+                    "$ref": "#/$defs/IpAddress"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "GatewaySpec": {
+      "type": "object",
+      "description": "Logical default-route target (L3 next-hop) for a prefix.",
+      "additionalProperties": false,
+      "required": [
+        "prefix",
+        "address"
+      ],
+      "properties": {
+        "prefix": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "address": {
+          "$ref": "#/$defs/IpAddress"
+        },
+        "device": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "interface": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "vrrp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "group": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 255
+            },
+            "priority": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 254
+            },
+            "virtualAddress": {
+              "$ref": "#/$defs/IpAddress"
+            }
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "DeviceSpec": {
+      "type": "object",
+      "description": "Physical/network hardware tracked in DCIM (router, switch, firewall, server chassis, PDU).",
+      "additionalProperties": false,
+      "required": [
+        "site",
+        "role"
+      ],
+      "properties": {
+        "site": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "router",
+            "switch",
+            "firewall",
+            "ap",
+            "server",
+            "appliance",
+            "pdu",
+            "storage",
+            "other"
+          ]
+        },
+        "manufacturer": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string",
+          "description": "OS/NOS family, e.g. proxmox, opnsense, mikrotik, edgeos."
+        },
+        "serialNumber": {
+          "type": "string"
+        },
+        "managementIp": {
+          "$ref": "#/$defs/IpAddress"
+        }
+      }
+    },
+    "InterfaceSpec": {
+      "type": "object",
+      "description": "A port on a Device (physical, LAG, VLAN sub-if, loopback, or mgmt).",
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "ifName",
+        "type"
+      ],
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "ifName": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "physical",
+            "lag",
+            "vlan",
+            "virtual",
+            "mgmt",
+            "loopback"
+          ]
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "mac": {
+          "$ref": "#/$defs/MacAddress"
+        },
+        "mtu": {
+          "type": "integer",
+          "minimum": 576,
+          "maximum": 9216
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "access",
+            "tagged",
+            "tagged-all",
+            "routed"
+          ]
+        },
+        "untaggedVlan": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "taggedVlans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cidr"
+          }
+        },
+        "lagMembers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "ProxmoxClusterSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "site",
+        "nodes"
+      ],
+      "properties": {
+        "site": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        },
+        "quorumExpected": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "apiEndpoint": {
+          "type": "string",
+          "format": "uri"
+        },
+        "tokenRef": {
+          "$ref": "#/$defs/SecretRefInline"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "HostSpec": {
+      "type": "object",
+      "description": "A physical machine that runs workloads (hypervisor node or bare-metal service host).",
+      "additionalProperties": false,
+      "required": [
+        "site",
+        "role"
+      ],
+      "properties": {
+        "site": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "cluster": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "device": {
+          "$ref": "#/$defs/ObjectRef",
+          "description": "Link to the DCIM hardware record."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "hypervisor",
+            "baremetal-service",
+            "storage",
+            "other"
+          ]
+        },
+        "proxmoxNode": {
+          "type": "string",
+          "description": "PVE node name (node_name in the provider)."
+        },
+        "cpuCores": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryMb": {
+          "type": "integer",
+          "minimum": 256
+        },
+        "managementIp": {
+          "$ref": "#/$defs/IpAddress"
+        },
+        "storage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "lvm",
+                  "lvmthin",
+                  "zfs",
+                  "dir",
+                  "nfs",
+                  "cephfs",
+                  "rbd"
+                ]
+              },
+              "sizeGb": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "VirtualMachineSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cores",
+        "memoryMb"
+      ],
+      "properties": {
+        "host": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "cluster": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "proxmoxNode": {
+          "type": "string"
+        },
+        "vmId": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 999999999
+        },
+        "cores": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryMb": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "networkInterfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GuestNic"
+          }
+        },
+        "startOnBoot": {
+          "type": "boolean",
+          "default": true
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Clone source name/id, or download-file reference."
+        },
+        "osType": {
+          "type": "string",
+          "description": "Proxmox ostype, e.g. l26, win11."
+        },
+        "disks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DiskSpec"
+          }
+        },
+        "agent": {
+          "type": "boolean",
+          "default": true
+        },
+        "cloudInit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "sshKeysRef": {
+              "$ref": "#/$defs/SecretRefInline"
+            },
+            "passwordRef": {
+              "$ref": "#/$defs/SecretRefInline"
+            },
+            "userDataFileId": {
+              "type": "string"
+            },
+            "datastore": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "LxcContainerSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cores",
+        "memoryMb",
+        "ostemplate"
+      ],
+      "properties": {
+        "host": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "cluster": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "proxmoxNode": {
+          "type": "string"
+        },
+        "vmId": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 999999999
+        },
+        "cores": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryMb": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "networkInterfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GuestNic"
+          }
+        },
+        "startOnBoot": {
+          "type": "boolean",
+          "default": true
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "ostemplate": {
+          "type": "string",
+          "description": "CT template volume id or download-file reference."
+        },
+        "osType": {
+          "type": "string",
+          "description": "Provider operating_system.type, e.g. ubuntu, debian, alpine."
+        },
+        "unprivileged": {
+          "type": "boolean",
+          "default": true
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "nesting": {
+              "type": "boolean",
+              "default": false
+            },
+            "fuse": {
+              "type": "boolean",
+              "default": false
+            },
+            "keyctl": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "swapMb": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rootfs": {
+          "$ref": "#/$defs/DiskSpec"
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MountPoint"
+          }
+        },
+        "cpuUnits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sshKeysRef": {
+          "$ref": "#/$defs/SecretRefInline"
+        },
+        "passwordRef": {
+          "$ref": "#/$defs/SecretRefInline"
+        }
+      }
+    },
+    "ServiceSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runsOn",
+        "exposure"
+      ],
+      "properties": {
+        "runsOn": {
+          "$ref": "#/$defs/ObjectRef",
+          "description": "VirtualMachine, LxcContainer, or Host that hosts the service."
+        },
+        "serviceType": {
+          "type": "string",
+          "enum": [
+            "web",
+            "db",
+            "dns",
+            "dhcp",
+            "monitoring",
+            "storage",
+            "automation",
+            "proxy",
+            "auth",
+            "messaging",
+            "other"
+          ]
+        },
+        "criticality": {
+          "$ref": "#/$defs/Criticality"
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PortSpec"
+          }
+        },
+        "vip": {
+          "$ref": "#/$defs/IpAddress"
+        },
+        "fqdn": {
+          "type": "string",
+          "format": "hostname"
+        },
+        "exposure": {
+          "$ref": "#/$defs/ExposureDecision"
+        },
+        "backupClass": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "healthcheck": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SecretRefInline"
+          }
+        },
+        "implementation": {
+          "type": "object",
+          "description": "How the service is realized. Example only; does not shape the desired-state core.",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "docker-compose",
+                "native",
+                "systemd",
+                "helm"
+              ]
+            },
+            "composeServiceName": {
+              "type": "string"
+            },
+            "composeFile": {
+              "type": "string"
+            },
+            "image": {
+              "type": "string"
+            },
+            "unitName": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "ServiceDependencySpec": {
+      "type": "object",
+      "description": "Directed edge in the service dependency graph (from -> to).",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "type"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "to": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "requires",
+            "soft-requires",
+            "uses"
+          ]
+        },
+        "protocol": {
+          "$ref": "#/$defs/L4Protocol"
+        },
+        "port": {
+          "$ref": "#/$defs/Port"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "FirewallPolicySpec": {
+      "type": "object",
+      "description": "Firewall posture/ownership: default action and scope for a set of AllowedFlow rules.",
+      "additionalProperties": false,
+      "required": [
+        "defaultAction",
+        "appliesTo"
+      ],
+      "properties": {
+        "defaultAction": {
+          "type": "string",
+          "enum": [
+            "drop",
+            "reject",
+            "accept"
+          ]
+        },
+        "appliesTo": {
+          "type": "string",
+          "enum": [
+            "zone-pair",
+            "device",
+            "global"
+          ]
+        },
+        "device": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "fromZone": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "toZone": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "AllowedFlowSpec": {
+      "type": "object",
+      "description": "A single permitted flow (explicit exception to default-deny).",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "source",
+        "destination",
+        "protocol"
+      ],
+      "properties": {
+        "policy": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "source": {
+          "$ref": "#/$defs/FlowEndpoint"
+        },
+        "destination": {
+          "$ref": "#/$defs/FlowEndpoint"
+        },
+        "protocol": {
+          "$ref": "#/$defs/L4Protocol"
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Port"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,5}-[0-9]{1,5}$"
+              }
+            ]
+          }
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "allow"
+          ],
+          "default": "allow"
+        },
+        "logging": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "BackupClassSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schedule",
+        "target",
+        "retention"
+      ],
+      "properties": {
+        "schedule": {
+          "type": "string",
+          "description": "Cron expression or named tier, e.g. '0 2 * * *' or 'daily'."
+        },
+        "target": {
+          "type": "string",
+          "description": "Backend, e.g. pbs:main, restic:b2, nfs:nas01."
+        },
+        "restoreTarget": {
+          "type": "string",
+          "description": "Where restores land; required for critical services (policy-enforced)."
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "daily": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "weekly": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "monthly": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "yearly": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "rpoMinutes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rtoMinutes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "encryptionSecretRef": {
+          "$ref": "#/$defs/SecretRefInline"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "SecretRefSpec": {
+      "type": "object",
+      "description": "Catalog entry for a secret stored in an external backend. NEVER contains the secret value.",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "path"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openbao",
+            "vault",
+            "sops",
+            "onepassword",
+            "env",
+            "file"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rotation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "intervalDays": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "not": {
+        "required": [
+          "value"
+        ]
+      }
+    },
+    "MonitoringCheckSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "type",
+        "interval"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "http",
+            "https",
+            "tcp",
+            "icmp",
+            "dns",
+            "script",
+            "snmp"
+          ]
+        },
+        "interval": {
+          "$ref": "#/$defs/Duration"
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration"
+        },
+        "severity": {
+          "$ref": "#/$defs/Criticality"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "port": {
+              "$ref": "#/$defs/Port"
+            },
+            "expectStatus": {
+              "type": "integer"
+            },
+            "expectString": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "scriptPath": {
+              "type": "string"
+            }
+          }
+        },
+        "notify": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "FailureScenarioSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fault",
+        "expected"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "fault": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "targets"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "host-down",
+                "device-down",
+                "link-down",
+                "service-down",
+                "site-down",
+                "wan-down"
+              ]
+            },
+            "targets": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/ObjectRef"
+              }
+            }
+          }
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "unavailableServices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObjectRef"
+              }
+            },
+            "degradedServices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObjectRef"
+              }
+            },
+            "failover": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "service",
+                  "to"
+                ],
+                "properties": {
+                  "service": {
+                    "$ref": "#/$defs/ObjectRef"
+                  },
+                  "to": {
+                    "$ref": "#/$defs/ObjectRef"
+                  },
+                  "automatic": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            },
+            "maxOutageMinutes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tool"
+          ],
+          "properties": {
+            "tool": {
+              "type": "string",
+              "enum": [
+                "batfish",
+                "containerlab",
+                "manual"
+              ]
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "Object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata",
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "spec": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Site"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/SiteSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "NetworkZone"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/NetworkZoneSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Vlan"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/VlanSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Prefix"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/PrefixSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Gateway"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/GatewaySpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Device"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/DeviceSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Interface"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/InterfaceSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ProxmoxCluster"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/ProxmoxClusterSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Host"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/HostSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "VirtualMachine"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/VirtualMachineSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "LxcContainer"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/LxcContainerSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Service"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/ServiceSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ServiceDependency"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/ServiceDependencySpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "FirewallPolicy"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/FirewallPolicySpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "AllowedFlow"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/AllowedFlowSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "BackupClass"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/BackupClassSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "SecretRef"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/SecretRefSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "MonitoringCheck"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/MonitoringCheckSpec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "FailureScenario"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "$ref": "#/$defs/FailureScenarioSpec"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Bundle": {
+      "type": "object",
+      "description": "Multi-object manifest: a container whose spec.items is an array of Objects.",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata",
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "kind": {
+          "const": "InfraManifest"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "spec": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "items"
+          ],
+          "properties": {
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/Object"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

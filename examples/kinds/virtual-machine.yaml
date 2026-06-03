@@ -1,0 +1,34 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: vm-docker-apps
+  title: Docker application host
+spec:
+  host: { kind: Host, name: host-k7plus }
+  cluster: { kind: ProxmoxCluster, name: pve-home }
+  proxmoxNode: k7plus
+  vmId: 110
+  template: debian-13-cloudinit
+  osType: l26
+  cores: 4
+  memoryMb: 8192
+  agent: true
+  startOnBoot: true
+  disks:
+    - id: scsi0
+      datastore: local-lvm
+      sizeGb: 40
+      interface: scsi
+      iothread: true
+      discard: true
+  networkInterfaces:
+    - name: eth0
+      bridge: vmbr0
+      model: virtio
+      vlan: 20
+      ipv4: { address: 10.10.20.10/24, gateway: 10.10.20.1 }
+  cloudInit:
+    username: chris
+    sshKeysRef: { ref: secret-ssh-authorized }
+    datastore: local-lvm
+  tags: [home, docker]

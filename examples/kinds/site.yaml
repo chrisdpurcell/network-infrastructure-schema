@@ -1,0 +1,16 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Site
+metadata:
+  name: home-fishlake
+  title: Fish Lake home LAN
+  labels:
+    env: home
+spec:
+  displayName: Home (Fish Lake)
+  role: home
+  location:
+    city: Fish Lake
+    region: Indiana
+    country: US
+    timezone: America/Indiana/Indianapolis
+  notes: Primary residence; home-LAN services run here.

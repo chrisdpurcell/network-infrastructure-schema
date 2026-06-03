@@ -1,0 +1,11 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Device
+metadata:
+  name: dev-opnsense
+spec:
+  site: { kind: Site, name: home-fishlake }
+  role: firewall
+  manufacturer: Deciso
+  model: DEC740
+  platform: opnsense
+  managementIp: 10.10.10.1

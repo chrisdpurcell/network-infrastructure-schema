@@ -1,0 +1,11 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: FirewallPolicy
+metadata:
+  name: fw-iot-egress
+spec:
+  defaultAction: drop
+  appliesTo: zone-pair
+  device: { kind: Device, name: dev-opnsense }
+  fromZone: { kind: NetworkZone, name: zone-iot }
+  toZone: { kind: NetworkZone, name: zone-trusted }
+  description: Default-deny posture from IoT toward trusted hosts.

@@ -1,0 +1,16 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: BackupClass
+metadata:
+  name: backup-critical
+spec:
+  schedule: "0 2 * * *"
+  target: pbs:home-main
+  restoreTarget: pbs:home-main -> host-k7plus
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+  rpoMinutes: 1440
+  rtoMinutes: 120
+  encryptionSecretRef: { ref: secret-pbs-encryption }
+  description: Nightly encrypted backups for critical services.
