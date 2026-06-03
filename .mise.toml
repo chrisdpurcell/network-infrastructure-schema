@@ -1,0 +1,12 @@
+# Non-Python CLI side of the validation toolchain (global conventions §1: mise).
+#
+# Exact-pinned to the known-green baseline (PROJECT-STATUS-AND-ROADMAP.md §7),
+# deliberately NOT "latest" (the convention's default): these are the validated
+# versions. conftest bundles OPA (0.69.0 at this pin) — there is no separate opa
+# entry. opentofu provides the `tofu` binary. Python tools live in pyproject.toml.
+#
+# Local use: `mise install` then `mise exec -- conftest ...` (or activate mise in
+# your shell). CI: install via jdx/mise-action per conventions §1.
+[tools]
+conftest = "0.56.0"
+opentofu = "1.9.0"
