@@ -47,6 +47,27 @@ def kind_to_spec_name() -> dict:
     return out
 
 
+def load_docs(path: pathlib.Path) -> list:
+    return [d for d in yaml.safe_load_all(path.read_text()) if d is not None]
+
+
+def js_ok(doc) -> tuple[bool, str]:
+    errs = sorted(JS.iter_errors(doc), key=lambda e: list(e.path))
+    if errs:
+        loc = "/".join(str(p) for p in errs[0].path) or "<root>"
+        return False, f"[{loc}] {errs[0].message}"
+    return True, ""
+
+
+def py_ok(doc) -> tuple[bool, str]:
+    """Structural (field-level) Pydantic validation -- NOT graph checks."""
+    try:
+        m.DocumentAdapter.validate_python(doc)
+        return True, ""
+    except Exception as e:  # pydantic.ValidationError
+        return False, str(e).splitlines()[0]
+
+
 def c4_structural_contract():
     pyd = m.emit_schema()
     canon_kinds = set(SCHEMA["$defs"]["Kind"]["enum"])
@@ -78,6 +99,21 @@ def c4_structural_contract():
                     f"schema_closed={cclosed} pydantic_closed={pclosed}")
 
 
+def c1_valid_corpus_agreement():
+    files = sorted(
+        f for sub in ("kinds", "manifests")
+        for f in (ROOT / "examples" / sub).rglob("*.yaml")
+    )
+    for f in files:
+        docs = load_docs(f)
+        for i, doc in enumerate(docs):
+            label = str(f.relative_to(ROOT)) + ("" if len(docs) == 1 else f"#doc{i}")
+            j, jd = js_ok(doc)
+            p, pd = py_ok(doc)
+            if j != p:
+                record("C1", label, j, p, jd if not j else pd)
+
+
 def report_and_exit():
     n_kinds = len(SCHEMA["$defs"]["Kind"]["enum"])
     n_examples = len(list((ROOT / "examples" / "kinds").glob("*.yaml")))
@@ -97,6 +133,7 @@ def report_and_exit():
 
 def main():
     c4_structural_contract()
+    c1_valid_corpus_agreement()
     report_and_exit()
 
 
