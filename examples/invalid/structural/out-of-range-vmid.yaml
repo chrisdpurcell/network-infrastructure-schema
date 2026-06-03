@@ -1,0 +1,8 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: VirtualMachine
+metadata: { name: vm-bad-vmid }
+spec:
+  host: { kind: Host, name: host-k7plus }
+  vmId: 5
+  cores: 2
+  memoryMb: 2048

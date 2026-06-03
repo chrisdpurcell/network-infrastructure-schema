@@ -1,0 +1,12 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: VirtualMachine
+metadata: { name: vm-bad-mac }
+spec:
+  host: { kind: Host, name: host-k7plus }
+  vmId: 111
+  cores: 2
+  memoryMb: 2048
+  networkInterfaces:
+    - name: eth0
+      bridge: vmbr0
+      mac: "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"

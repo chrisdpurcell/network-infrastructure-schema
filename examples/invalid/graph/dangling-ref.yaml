@@ -1,0 +1,12 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: InfraManifest
+metadata: { name: manifest-dangling-ref }
+spec:
+  items:
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Prefix
+      metadata: { name: prefix-orphan }
+      spec:
+        cidr: 10.10.10.0/24
+        site: { kind: Site, name: site-that-does-not-exist }
+        vlan: { kind: Vlan, name: vlan-that-does-not-exist }

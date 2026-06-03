@@ -1,0 +1,12 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: VirtualMachine
+metadata: { name: vm-bad-gateway }
+spec:
+  host: { kind: Host, name: host-k7plus }
+  vmId: 110
+  cores: 2
+  memoryMb: 2048
+  networkInterfaces:
+    - name: eth0
+      bridge: vmbr0
+      ipv4: { address: 10.10.20.10/24, gateway: not-an-ip }

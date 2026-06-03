@@ -14,6 +14,8 @@ format_checker, matching validate_examples.py. Do not add one (spec D1).
 
 See docs/superpowers/specs/2026-06-03-schema-pydantic-drift-gate-design.md.
 """
+import contextlib
+import io
 import json
 import pathlib
 import sys
@@ -114,6 +116,31 @@ def c1_valid_corpus_agreement():
                 record("C1", label, j, p, jd if not j else pd)
 
 
+def c2_invalid_corpus():
+    base = ROOT / "examples" / "invalid"
+
+    # structural/: BOTH validators must reject. Either side accepting => drift.
+    for f in sorted((base / "structural").glob("*.yaml")):
+        locus = str(f.relative_to(ROOT))
+        for doc in load_docs(f):
+            j, _ = js_ok(doc)
+            p, _ = py_ok(doc)
+            if j:
+                record("C2", locus, j, p, "JSON Schema too permissive (accepted an invalid doc)")
+            if p:
+                record("C2", locus, j, p, "Pydantic too permissive (accepted an invalid doc)")
+
+    # graph/: JSON Schema accepts (boundary); Pydantic GRAPH layer must reject.
+    for f in sorted((base / "graph").glob("*.yaml")):
+        locus = str(f.relative_to(ROOT))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            graph_rc = m.load_and_check([str(f)], merge=True)  # 0 == accepted
+        if graph_rc == 0:
+            record("C2", locus, None, True,
+                    "graph fixture NOT rejected by the Pydantic graph layer")
+
+
 def report_and_exit():
     n_kinds = len(SCHEMA["$defs"]["Kind"]["enum"])
     n_examples = len(list((ROOT / "examples" / "kinds").glob("*.yaml")))
@@ -134,6 +161,7 @@ def report_and_exit():
 def main():
     c4_structural_contract()
     c1_valid_corpus_agreement()
+    c2_invalid_corpus()
     report_and_exit()
 
 

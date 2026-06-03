@@ -1,0 +1,7 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Site
+metadata: { name: site-with-prefix-spec }
+spec:
+  cidr: 10.10.10.0/24
+  site: { kind: Site, name: home-fishlake }
+  vlan: { kind: Vlan, name: vlan-management }

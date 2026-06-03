@@ -1,0 +1,4 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Frobnicator
+metadata: { name: nope }
+spec: {}

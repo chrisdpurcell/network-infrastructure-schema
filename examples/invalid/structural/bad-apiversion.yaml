@@ -1,0 +1,7 @@
+apiVersion: not-a-valid-api-version
+kind: Prefix
+metadata: { name: prefix-bad-apiversion }
+spec:
+  cidr: 10.10.10.0/24
+  site: { kind: Site, name: home-fishlake }
+  vlan: { kind: Vlan, name: vlan-management }

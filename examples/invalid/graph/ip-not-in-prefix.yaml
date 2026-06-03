@@ -1,0 +1,35 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: InfraManifest
+metadata: { name: manifest-ip-out-of-prefix }
+spec:
+  items:
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Site
+      metadata: { name: home-fishlake }
+      spec: { role: home }
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Vlan
+      metadata: { name: vlan-management }
+      spec: { vlanId: 10, vlanName: management, site: { kind: Site, name: home-fishlake } }
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Prefix
+      metadata: { name: prefix-management }
+      spec:
+        cidr: 10.10.10.0/24
+        site: { kind: Site, name: home-fishlake }
+        vlan: { kind: Vlan, name: vlan-management }
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Host
+      metadata: { name: host-k7plus }
+      spec: { site: { kind: Site, name: home-fishlake }, role: hypervisor }
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: VirtualMachine
+      metadata: { name: vm-wrong-ip }
+      spec:
+        host: { kind: Host, name: host-k7plus }
+        cores: 2
+        memoryMb: 1024
+        networkInterfaces:
+          - name: eth0
+            bridge: vmbr0
+            ipv4: { address: 10.99.99.10/24 }
