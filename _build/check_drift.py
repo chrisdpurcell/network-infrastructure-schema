@@ -147,6 +147,10 @@ def report_and_exit():
     if n_kinds == 0 or n_examples == 0:
         print("FATAL: found zero kinds or zero examples -- path bug, not a pass.")
         sys.exit(2)
+    n_invalid = len(list((ROOT / "examples" / "invalid").rglob("*.yaml")))
+    if n_invalid == 0:
+        print("FATAL: examples/invalid/ corpus is empty -- C2 would be a silent no-op.")
+        sys.exit(2)
     if DRIFT:
         print(f"DRIFT DETECTED ({len(DRIFT)} row(s)):\n")
         print(f"{'comp':<5} {'locus':<50} {'json':<7} {'pyd':<7} detail")

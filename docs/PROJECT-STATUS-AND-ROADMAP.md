@@ -72,7 +72,7 @@ Nothing here is an unmet **hard requirement** from §1 "Hard requirements" — t
 | Live NetBox seed (two-pass POST against a real instance) | Payloads + sequence documented in mapping guide | Needs a NetBox endpoint + token | NEEDS-ENV |
 | `tofu plan`/`apply` against real Proxmox | `tofu validate` passes; plan/apply not run | Needs Proxmox API + credentials | NEEDS-ENV |
 | Generator **executables** (NetBox seeder, OpenTofu emitter, Ansible inventory, Containerlab emitter, Batfish input) | Mapping **rules** + one worked example per target shipped | Prompt required guides+examples, not executables; executables are the next layer | FUTURE |
-| Automated schema↔Pydantic drift gate | Both validate the same examples (drift would surface as a test failure); no dedicated equivalence test in CI | Time-boxed v0.1; invariant documented in CHANGELOG | FUTURE |
+| Automated schema↔Pydantic drift gate | Gate built: `_build/check_drift.py` (components C1/C2/C4); see §8 2026-06-03 entry | Built this session | DONE |
 | Real fixtures (true domains, addressing, hardware specs) | `.example` domains + representative 10.10.10/24, 10.10.20/24 used | Placeholders pending the real environment values | FUTURE |
 | Verbatim original prompt | Reconstructed; moved to `docs/original-prompt.md` (linked from §1) | Attachment text not retained in working context | N/A |
 
