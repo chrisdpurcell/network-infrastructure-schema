@@ -8,6 +8,10 @@ Desired-state infrastructure schema for the Luminous3D homelab. 19 Kubernetes-st
 
 When working in this repo, read [`docs/PROJECT-STATUS-AND-ROADMAP.md`](docs/PROJECT-STATUS-AND-ROADMAP.md) for the current status, known gaps, roadmap sequencing, validation command notes, and post-build change log. Keep its moving sections updated when facts change, especially remaining work, roadmap progress, validation commands/tool versions, and post-build change-log entries.
 
+## Session Notes (continuity)
+
+Read [`docs/SESSION-NOTES.md`](docs/SESSION-NOTES.md) at session start for the tactical continuity the roadmap doc doesn't carry: recent decisions and their _why_, time-costing gotchas, the current mental model, and open threads to resume. Append a dated entry (newest first) at the end of any substantive session, and promote durable, non-obvious traps into its "Durable gotchas & mental model" section. Division of labor: big-picture status → `PROJECT-STATUS-AND-ROADMAP.md`; finer-grained "what I learned / decided / watch out for" → `SESSION-NOTES.md`.
+
 ## Related Repositories
 
 **network-infrastructure** consumes this schema. Breaking schema changes require migration planning there before committing here.
