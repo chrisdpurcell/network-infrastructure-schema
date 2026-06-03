@@ -4,6 +4,10 @@
 
 Desired-state infrastructure schema for the Luminous3D homelab. 19 Kubernetes-style object kinds (sites, zones, VLANs, prefixes, devices, interfaces, Proxmox VMs/LXC, services, firewall policies, backup classes, secrets, monitoring, failure scenarios). Downstream artifacts (NetBox, OpenTofu HCL, Containerlab, Ansible) are _generated_ from validated YAML — never hand-authored.
 
+## Project Status & Roadmap
+
+When working in this repo, read [`docs/PROJECT-STATUS-AND-ROADMAP.md`](docs/PROJECT-STATUS-AND-ROADMAP.md) for the current status, known gaps, roadmap sequencing, validation command notes, and post-build change log. Keep its moving sections updated when facts change, especially remaining work, roadmap progress, validation commands/tool versions, and post-build change-log entries.
+
 ## Related Repositories
 
 **network-infrastructure** consumes this schema. Breaking schema changes require migration planning there before committing here.
@@ -25,6 +29,7 @@ Desired-state infrastructure schema for the Luminous3D homelab. 19 Kubernetes-st
 | `generators/` | Mapping guides for downstream targets. Not executable code. |
 | `_build/` | `build_schema.py`, `validate_examples.py`. |
 | `ci/pipeline.md` | 9-stage CI spec. Read before proposing new validation steps. |
+| `docs/PROJECT-STATUS-AND-ROADMAP.md` | LLM-facing status, roadmap, validation notes, and post-build change log. Keep moving sections current. |
 | `backups/` | Archived schema releases. Do not edit. |
 | `live/` | _(not yet created)_ Real infrastructure state documents go here. |
 
