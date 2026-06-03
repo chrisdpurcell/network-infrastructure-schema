@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import json
+import re
 import sys
 from typing import Annotated, Literal, Optional, Union
 
@@ -97,8 +98,20 @@ class SecretRefInline(Strict):
         return self
 
 
+# Mirror of the Cidr $def regexes in _build/build_schema.py. Kept in sync by
+# the drift gate (examples/invalid/structural/cidr-prefixless.yaml): if these
+# diverge from the schema, C2 fails. A bare address (no /prefix) or an
+# IPv4-mapped IPv6 form is rejected here exactly as the JSON Schema rejects it.
+_CIDR_RE = (
+    re.compile(r"^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)/(3[0-2]|[12]?\d)$"),
+    re.compile(r"^([0-9a-fA-F:]+)/(12[0-8]|1[01]\d|[1-9]?\d)$"),
+)
+
+
 def _validate_cidr(v: str) -> str:
-    ipaddress.ip_network(v, strict=False)
+    if not any(rx.match(v) for rx in _CIDR_RE):
+        raise ValueError(f"not a valid CIDR (needs an explicit prefix length): {v!r}")
+    ipaddress.ip_network(v, strict=False)  # semantic sanity on top of shape
     return v
 
 
