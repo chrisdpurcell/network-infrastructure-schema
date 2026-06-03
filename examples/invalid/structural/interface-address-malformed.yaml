@@ -1,0 +1,9 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Interface
+metadata: { name: if-bad-address }
+spec:
+  device: { kind: Device, name: dev-opnsense }
+  ifName: igc0
+  type: physical
+  addresses:
+    - not-a-cidr

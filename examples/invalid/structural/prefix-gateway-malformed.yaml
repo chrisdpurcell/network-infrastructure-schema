@@ -1,0 +1,6 @@
+apiVersion: infra.luminous3d.example/v1alpha1
+kind: Prefix
+metadata: { name: prefix-bad-gateway }
+spec:
+  cidr: 10.10.10.0/24
+  gateway: not-an-ip

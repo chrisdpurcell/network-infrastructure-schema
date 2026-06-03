@@ -27,6 +27,7 @@ from typing import Annotated, Literal, Optional, Union
 
 import yaml
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -120,13 +121,13 @@ def _validate_ip(v: str) -> str:
     return v
 
 
-Cidr = Annotated[str, Field()]
-IpAddress = Annotated[str, Field()]
+Cidr = Annotated[str, AfterValidator(_validate_cidr)]
+IpAddress = Annotated[str, AfterValidator(_validate_ip)]
 
 
 class IpConfig(Strict):
     address: Optional[str] = None  # "dhcp" or CIDR
-    gateway: Optional[str] = None
+    gateway: Optional[IpAddress] = None
 
     @field_validator("address")
     @classmethod
@@ -134,11 +135,6 @@ class IpConfig(Strict):
         if v is None or v == "dhcp":
             return v
         return _validate_cidr(v)
-
-    @field_validator("gateway")
-    @classmethod
-    def _gw(cls, v):
-        return None if v is None else _validate_ip(v)
 
 
 class GuestNic(Strict):
@@ -195,7 +191,7 @@ class ExposureDecision(Strict):
 class FlowEndpoint(Strict):
     zone: Optional[ObjectRef] = None
     prefix: Optional[ObjectRef] = None
-    cidr: Optional[str] = None
+    cidr: Optional[Cidr] = None
     service: Optional[ObjectRef] = None
     any: Optional[bool] = None
 
@@ -240,8 +236,8 @@ class VlanSpec(Strict):
 
 
 class DhcpRange(Strict):
-    start: str
-    end: str
+    start: IpAddress
+    end: IpAddress
 
 
 class DhcpSpec(Strict):
@@ -250,30 +246,25 @@ class DhcpSpec(Strict):
 
 
 class PrefixSpec(Strict):
-    cidr: str
+    cidr: Cidr
     site: Optional[ObjectRef] = None
     vlan: Optional[ObjectRef] = None
     role: Optional[Literal["management", "server", "user", "guest", "iot", "dmz",
                            "loopback", "transit", "container", "storage"]] = None
-    gateway: Optional[str] = None
+    gateway: Optional[IpAddress] = None
     dhcp: Optional[DhcpSpec] = None
     description: Optional[str] = None
-
-    @field_validator("cidr")
-    @classmethod
-    def _cidr(cls, v):
-        return _validate_cidr(v)
 
 
 class Vrrp(Strict):
     group: Optional[Annotated[int, Field(ge=1, le=255)]] = None
     priority: Optional[Annotated[int, Field(ge=1, le=254)]] = None
-    virtualAddress: Optional[str] = None
+    virtualAddress: Optional[IpAddress] = None
 
 
 class GatewaySpec(Strict):
     prefix: ObjectRef
-    address: str
+    address: IpAddress
     device: Optional[ObjectRef] = None
     interface: Optional[ObjectRef] = None
     vrrp: Optional[Vrrp] = None
@@ -288,7 +279,7 @@ class DeviceSpec(Strict):
     model: Optional[str] = None
     platform: Optional[str] = None
     serialNumber: Optional[str] = None
-    managementIp: Optional[str] = None
+    managementIp: Optional[IpAddress] = None
 
 
 class InterfaceSpec(Strict):
@@ -301,7 +292,7 @@ class InterfaceSpec(Strict):
     mode: Optional[Literal["access", "tagged", "tagged-all", "routed"]] = None
     untaggedVlan: Optional[ObjectRef] = None
     taggedVlans: Optional[list[ObjectRef]] = None
-    addresses: Optional[list[str]] = None
+    addresses: Optional[list[Cidr]] = None
     lagMembers: Optional[list[ObjectRef]] = None
     description: Optional[str] = None
 
@@ -329,7 +320,7 @@ class HostSpec(Strict):
     proxmoxNode: Optional[str] = None
     cpuCores: Optional[Annotated[int, Field(ge=1)]] = None
     memoryMb: Optional[Annotated[int, Field(ge=256)]] = None
-    managementIp: Optional[str] = None
+    managementIp: Optional[IpAddress] = None
     storage: Optional[list[HostStorage]] = None
 
 
@@ -396,7 +387,7 @@ class ServiceSpec(Strict):
                                   "automation", "proxy", "auth", "messaging", "other"]] = None
     criticality: Optional[Criticality] = None
     ports: Optional[list[PortSpec]] = None
-    vip: Optional[str] = None
+    vip: Optional[IpAddress] = None
     fqdn: Optional[str] = None
     backupClass: Optional[ObjectRef] = None
     healthcheck: Optional[ObjectRef] = None
