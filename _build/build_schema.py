@@ -113,9 +113,17 @@ defs["Cidr"] = {
     ],
 }
 
+# Pattern-based (was format-only, which is annotation-only and so unenforced
+# with the gate's format_checker off -- spec D1/D6). Matches Pydantic's
+# ip_address() on the not-an-ip class. Known out-of-corpus edge: IPv4-mapped
+# IPv6 (::ffff:192.168.0.1) is accepted by ip_address() but rejected by the
+# hex-colon IPv6 pattern; no example/consumer uses it (spec D6 fix-2).
 defs["IpAddress"] = {
     "type": "string",
-    "anyOf": [{"format": "ipv4"}, {"format": "ipv6"}],
+    "anyOf": [
+        {"pattern": r"^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$"},
+        {"pattern": r"^[0-9a-fA-F:]+$"},
+    ],
 }
 
 defs["IpOrDhcp"] = {
