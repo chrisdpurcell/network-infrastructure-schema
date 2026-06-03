@@ -1,3 +1,5 @@
-# Claude Code Instructions for Project: network-infrastructure
+# CLAUDE.md
 
-**IMPORTANT:** This instruction file is specific to Claude Code. For general instructions applicable to all agents see [AGENTS.md](AGENTS.md).
+@AGENTS.md
+
+## Claude Code-specific instructions
