@@ -449,7 +449,7 @@ spec:
     - apiVersion: infra.luminous3d.example/v1alpha1
       kind: Vlan
       metadata: { name: vlan-management }
-      spec: { vlanId: 10, site: { kind: Site, name: home-fishlake } }
+      spec: { vlanId: 10, vlanName: management, site: { kind: Site, name: home-fishlake } }
     - apiVersion: infra.luminous3d.example/v1alpha1
       kind: Prefix
       metadata: { name: prefix-management }
@@ -457,10 +457,24 @@ spec:
         cidr: 10.10.10.0/24
         site: { kind: Site, name: home-fishlake }
         vlan: { kind: Vlan, name: vlan-management }
-        gateway: 10.99.99.1
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: Host
+      metadata: { name: host-k7plus }
+      spec: { site: { kind: Site, name: home-fishlake }, role: hypervisor }
+    - apiVersion: infra.luminous3d.example/v1alpha1
+      kind: VirtualMachine
+      metadata: { name: vm-wrong-ip }
+      spec:
+        host: { kind: Host, name: host-k7plus }
+        cores: 2
+        memoryMb: 1024
+        networkInterfaces:
+          - name: eth0
+            bridge: vmbr0
+            ipv4: { address: 10.99.99.10/24 }
 ```
 
-Note: the `graph/` fixtures must be *structurally* valid (JSON Schema accepts) so that the ONLY failure is the graph rule. If `infra_models --check` rejects one for a structural reason, adjust the manifest. The exact graph rule each triggers (dangling ref / gateway outside prefix) depends on `check_manifest`; the assertion in Step 4 only requires that the Pydantic graph layer rejects and the JSON Schema accepts.
+Note: the `graph/` fixtures must be *structurally* valid (JSON Schema accepts) so that the ONLY failure is the graph rule. If `infra_models --check` rejects one for a structural reason, adjust the manifest. The exact graph rule each triggers (dangling ref / ip-not-in-declared-prefix) depends on `check_manifest`. The `ip-not-in-prefix` fixture uses a VM NIC address outside all declared prefixes because `check_manifest` checks NIC addresses only — it does NOT check `PrefixSpec.gateway`. The assertion in Step 4 only requires that the Pydantic graph layer rejects and the JSON Schema accepts.
 
 - [ ] **Step 4: Add the C2 component**
 
@@ -546,9 +560,9 @@ def _validate_cidr(v: str) -> str:
     return v
 ```
 
-- [ ] **Step 2: Ensure `re` is imported**
+- [ ] **Step 2: Add `import re`**
 
-Check the top of `python/infra_models.py` for `import re`. If absent, add it next to the other stdlib imports (e.g. after `import ipaddress`).
+`re` is NOT currently imported in `python/infra_models.py`. Add it next to the other stdlib imports (after `import ipaddress`).
 
 Run: `uv run python -c "import sys; sys.path.insert(0,'python'); import infra_models"`
 Expected: no output, exit 0 (module imports cleanly).
@@ -669,12 +683,11 @@ for kind in m.KINDS:
     spec_cls = getattr(m, f"{kind}Spec", None)
     if spec_cls is None:
         continue
-    class F(ModelFactory):
-        __model__ = spec_cls
+    class F(ModelFactory[spec_cls]):
         __random_seed__ = 1729
     try:
         for inst in F.coverage():
-            inst.model_dump(mode="json", by_alias=True)  # build+validate happens in coverage()
+            inst.model_dump(mode="json", by_alias=True)  # coverage() yields model instances; model_dump serialises them
     except Exception as e:
         need_override.append((kind, str(e).splitlines()[0]))
 print("kinds needing a custom provider/override:", len(need_override))
@@ -704,8 +717,7 @@ def c3_generative():
         if spec_cls is None:
             continue
 
-        class F(ModelFactory):
-            __model__ = spec_cls
+        class F(ModelFactory[spec_cls]):
             __random_seed__ = 1729
             # Curated overrides for anchored-pattern primitives go here, e.g.:
             #   mac = lambda: "02:00:00:00:00:01"
