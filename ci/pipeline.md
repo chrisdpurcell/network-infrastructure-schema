@@ -22,8 +22,9 @@ need generated artifacts or credentials.
 | 2 | Schema validation | jsonschema (Draft 2020-12) | envelope/spec shape, closedness |
 | 3 | Structural + graph model | Pydantic v2 (`infra_models.py`) | types, cross-field rules, references, IP-in-prefix |
 | 4 | Guardrail policy | Conftest/OPA | governance + cross-object rules |
+| 4b | Contract drift gate | `check_drift.py` | structural equivalence of JSON Schema ↔ Pydantic |
 | 5 | Generate artifacts | generators | (produces NetBox/HCL/clab/ansible) |
-| 6 | IaC security scan | Checkov, Trivy | misconfig in *generated* HCL |
+| 6 | IaC security scan | Checkov, Trivy | misconfig in _generated_ HCL |
 | 7 | OpenTofu | `tofu validate` / `plan` | provider-schema correctness; intended change |
 | 8 | Ansible lint | ansible-lint | generated playbook/inventory hygiene |
 | 9 | Network analysis | Containerlab + Batfish | reachability/forwarding intent |
@@ -80,6 +81,40 @@ conftest verify -p policies/opa            # policy unit tests
 Enforces the five required policies (public-exposure approval, critical-service
 backup+restore, privileged-container approval, management isolation,
 IP-in-prefix). See `policies/conftest/README.md`.
+
+## Stage 4b — Contract drift gate **[verified: check_drift.py]**
+
+```bash
+uv run python _build/check_drift.py
+```
+Fails (exit 1) when `schemas/infra.schema.json` and `python/infra_models.py`
+would accept or reject different documents. Three components:
+
+- **C1** — every document under `examples/kinds/` and `examples/manifests/`
+  must receive the same pass verdict from both the JSON Schema validator and
+  Pydantic. Detects "schema-broader" or "Pydantic-broader" drift on the
+  existing example corpus.
+- **C2** — documents under `examples/invalid/structural/` must be rejected by
+  both validators; documents under `examples/invalid/graph/` must be rejected
+  by the Pydantic graph layer. Keeps the negative corpus honest.
+- **C4** — kind-set, required-field, and closedness parity between the two
+  validators. Catches a new kind added to one side only, or a field made
+  optional in one but not the other.
+
+**Out of scope for this gate** (handled by stages 3 and 4, or deferred):
+
+- Cross-field graph checks (IP-in-prefix, referential integrity, composite-key
+  uniqueness) — owned by the Pydantic graph layer (stage 3) and OPA policies
+  (stage 4).
+- Explicit `null` on optional fields — JSON Schema rejects `field: null` for a
+  non-nullable optional while Pydantic accepts it; real documents never write
+  explicit `null`, so this is outside the gate's tested space.
+- C3 generative (polyfactory property-based testing) — deferred; needs ~6–8
+  custom providers and `exclude_none=True` serialization.
+
+The JSON Schema validator runs with no `format_checker` (format is
+annotation-only repo-wide). Expected output: `OK -- schema and Pydantic agree
+(19 kinds, 19 examples).`
 
 ## Stage 5 — Generate artifacts **[described]**
 

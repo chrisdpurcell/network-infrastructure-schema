@@ -27,7 +27,22 @@ Rules of thumb:
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Schema↔Pydantic drift gate** (`_build/check_drift.py`): a plain-script CI gate (exit 0/1, no pytest) that fails when `schemas/infra.schema.json` (normative) and `python/infra_models.py` (Pydantic) would accept or reject different documents. Three components: **C1** — all 21 valid documents (`examples/kinds/` + `examples/manifests/`) must receive the same pass verdict from both validators; **C2** — an invalid corpus under `examples/invalid/structural/` must be rejected by both, and `examples/invalid/graph/` documents must be rejected by the Pydantic graph layer; **C4** — kind-set, required-field, and closedness parity. Run: `uv run python _build/check_drift.py`. The JSON Schema validator runs with no `format_checker` (format is annotation-only repo-wide). Closes roadmap §6 Phase 1 #1.
+- **Negative-example corpus** (`examples/invalid/{structural,graph}/`): committed set of intentionally invalid documents exercised by the drift gate as regression tests. Closes roadmap §6 Phase 1 #3 (folded into the drift gate work).
+
+### Fixed
+
+- **D6 — Schema↔Pydantic conformance fixes** (PATCH; classified as bug, not a version event; no document valid under _both_ validators was affected; no `apiVersion` bump):
+  - **fix-1:** `_validate_cidr` in `python/infra_models.py` tightened to the normative CIDR shape, rejecting prefix-less and IPv4-mapped forms that the schema already rejected.
+  - **fix-2:** the `IpAddress` `$def` in `_build/build_schema.py` gained an enforced `pattern` (was `format`-only, i.e. annotation-only/unenforced); schema regenerated.
+  - **fix-3:** the `IpAddress`/`Cidr` Pydantic type aliases now carry `AfterValidator`s, and ~12 fields that were bare `str` (e.g. `PrefixSpec.gateway`, `GatewaySpec.address`, `DeviceSpec.managementIp`, `HostSpec.managementIp`, `ServiceSpec.vip`, `InterfaceSpec.addresses`, `DhcpRange.start`/`end`, `Vrrp.virtualAddress`, `FlowEndpoint.cidr`, `IpConfig.gateway`) were retyped to the validated aliases, eliminating a class of "Pydantic-broader" drift.
+
+### Known limitations / deferred
+
+- **C3 (polyfactory generative component) — deferred.** Property-based / generative testing via polyfactory needs ~6–8 custom providers for generation artifacts and must dump with `exclude_none=True` to produce realistic documents. C3 is the lens that surfaced the fix-3 drift class; it is a documented fast-follow, not a current deliverable.
+- **Explicit `null` on optional fields** — JSON Schema rejects `field: null` for a non-nullable optional while Pydantic accepts it. Real documents always omit unset optionals (never write explicit `null`), so this divergence is outside the gate's tested space and is not expected to affect any real document. Tracked as a known boundary.
 
 ## [0.1.0] — 2026-06-02
 

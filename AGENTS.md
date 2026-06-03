@@ -43,6 +43,7 @@ Each stage gates the next. Do not skip ahead.
 | 2 | JSON Schema | `python3 _build/validate_examples.py` |
 | 3 | Pydantic + graph | `python3 python/infra_models.py --merge --check <files>` |
 | 4 | OPA guardrails | `conftest verify -p policies/opa` then `conftest test --combine -p policies/opa <files>` |
+| 4b | Contract drift gate | `uv run python _build/check_drift.py` |
 | 5+ | Generate → scan → tofu → ansible → netsim | See `ci/pipeline.md` |
 
 ## Authoring Rules

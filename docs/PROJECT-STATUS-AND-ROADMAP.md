@@ -95,9 +95,9 @@ Ordered by dependency and leverage. Each phase is independently shippable. Phase
 
 ### Phase 1 — Lock the contract (prerequisite for generators)
 
-1. **Schema↔Pydantic drift gate.** Add a CI step that diffs the canonical `infra.schema.json` against `infra_models.py --emit-schema` at the _semantic_ level (normalize `$defs` naming/descriptions, then compare constraints). Fail CI on divergence. Closes the one invariant currently held by convention.
+1. **Schema↔Pydantic drift gate.** ✅ **DONE** (`_build/check_drift.py`). Structural-equivalence gate: C1 (valid examples get the same verdict from both validators), C2 (negative corpus rejected by both), C4 (kind-set / required-field / closedness parity). Also included three D6 conformance fixes (PATCH, no `apiVersion` bump) and the negative corpus (`examples/invalid/`). **C3 (polyfactory generative component) deferred** — needs ~6–8 custom providers + `exclude_none=True`; see §8 2026-06-03 entry. Run: `uv run python _build/check_drift.py`.
 2. **Real fixtures.** Replace `.example` domains and representative addressing with the true L3D values; move the fixtures into a `live/` tree validated in `--merge` (whole-repo closed-world) mode.
-3. **Negative-example corpus as tests.** Promote the ad-hoc negative schema checks into a committed `examples/invalid/` set + a harness assertion, so "the schema rejects X" is a regression test, not a one-off.
+3. **Negative-example corpus as tests.** ✅ **DONE** (folded into #1). `examples/invalid/{structural,graph}/` committed and exercised by the drift gate as regression tests.
 
 ### Phase 2 — Generators (the mapping guides become code)
 
@@ -151,6 +151,30 @@ Toolchain validated against (now **pinned & committed** — Python tools in `pyp
 ## 8. Post-build change log
 
 Append-only record of changes made to the pack _after_ the original build session (§2). Newest first. Schema/policy/example contracts are untouched unless an entry says so.
+
+### 2026-06-03 — Drift gate + D6 conformance fixes; Phase 1 #1 done, #3 folded
+
+`_build/check_drift.py` implements the schema↔Pydantic structural-equivalence gate (C1/C2/C4) as a plain exit-0/1 script with no pytest dependency. Three components: **C1** valid documents (`examples/kinds/` + `examples/manifests/`) must get the same pass verdict from both validators; **C2** `examples/invalid/structural/` rejected by both, `examples/invalid/graph/` rejected by Pydantic graph layer; **C4** kind-set / required-field / closedness parity. Run: `uv run python _build/check_drift.py`.
+
+**Negative corpus** `examples/invalid/{structural,graph}/` committed as regression tests — closes Phase 1 #3 (folded into #1).
+
+**D6 conformance fixes** (PATCH; no `apiVersion` bump; no conformant document affected):
+- fix-1: `_validate_cidr` tightened to normative CIDR shape (rejects prefix-less / IPv4-mapped forms).
+- fix-2: `IpAddress` `$def` in `build_schema.py` gains an enforced `pattern` (was `format`-only); schema regenerated.
+- fix-3: `IpAddress`/`Cidr` Pydantic type aliases gain `AfterValidator`s; ~12 fields retyped from bare `str` to the validated aliases (eliminates a class of Pydantic-broader drift that C3 surfaced).
+
+**C3 deferred** (polyfactory generative component): needs ~6–8 custom polyfactory providers for generation artifacts and `exclude_none=True` to produce realistic documents. It is the lens that surfaced the fix-3 drift class. Re-attempt after the explicit-null modeling decision is settled.
+
+**Known boundary — explicit `null` on optional fields:** JSON Schema rejects `field: null` for a non-nullable optional while Pydantic accepts it. Real documents omit unset optionals (never write explicit `null`), so this is outside the gate's tested space and not expected to affect any real document. Tracked, not "fixed."
+
+| Component | Status |
+| --- | --- |
+| C1 — valid-example parity | DONE |
+| C2 — negative corpus + rejection parity | DONE |
+| C4 — kind-set / closedness / required-field parity | DONE |
+| C3 — polyfactory generative | DEFERRED (fast-follow) |
+| D6 fix-1/2/3 | DONE (PATCH) |
+| explicit-null boundary | DOCUMENTED (known scope limit) |
 
 ### 2026-06-02 — Committed, reproducible validation toolchain (commit `9875018`)
 
