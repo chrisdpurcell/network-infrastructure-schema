@@ -378,7 +378,7 @@ Ordered by dependency and leverage. Each phase is independently shippable. Phase
 
 8. **Batfish integration.** Feed generated device configs into Batfish; turn each `FailureScenario` into an automated assertion (expected unavailable / failover / max-outage) so the modeled blast radius is _checked_, not just declared.
 9. **Checkov + Trivy in CI.** Run both against the _generated_ OpenTofu/ Containerlab artifacts (not the abstract model); add the custom-Rego checks the guidance describes.
-10. **End-to-end pipeline run.** Wire stages 1–9 of `ci/pipeline.md` into an actual GitHub Actions / GitLab CI workflow file and prove a green run on the `live/` fixtures.
+10. **End-to-end pipeline run.** Wire stages 1–9 of `ci/pipeline.md` into an actual GitHub Actions / GitLab CI workflow file and prove a green run on the `live/` fixtures. (The toolchain is now committed — `pyproject.toml`/`uv.lock`/`.mise.toml`/`.python-version` — so the workflow can install it deterministically via `astral-sh/setup-uv` + `jdx/mise-action`; see §8.)
 
 ### Phase 4 — Operability & extension
 
@@ -396,15 +396,43 @@ Phase 1 must precede Phase 2: generators that build on a contract that can silen
 ## 7. Quick reference — validation commands
 
 ```bash
-export PATH=/home/claude/bin:$PATH   # build env only; conftest + tofu live here
+# Toolchain is committed & reproducible (see §8). Run from the repo root.
+#   Python validators → uv-managed venv (pyproject.toml + uv.lock).  Reproduce: uv sync
+#   conftest / tofu   → mise-pinned (.mise.toml).                    Reproduce: mise install
+#   conftest/tofu must be on PATH (shell-activate mise, or prefix each with `mise exec --`).
+# Benign: uv prints `VIRTUAL_ENV=/usr ... will be ignored` (this box exports VIRTUAL_ENV
+# globally); uv correctly uses the project .venv. Not a failure — ignore it.
 
-yamllint -s .yamllint.yml examples/ policies/
-python3 _build/validate_examples.py
-python3 python/infra_models.py --check examples/kinds/*.yaml examples/manifests/*.yaml
-conftest verify -p policies/opa
-conftest test --combine -p policies/opa examples/manifests/site-home.yaml
-conftest test --combine -p policies/opa examples/manifests/multi-site-failover.yaml
-( cd examples/opentofu && tofu init && tofu validate )
+uv run yamllint -s -c .yamllint.yml examples/                                                # 1  YAML lint
+uv run python _build/validate_examples.py                                                    # 2  JSON Schema
+uv run python python/infra_models.py --check examples/kinds/*.yaml examples/manifests/*.yaml # 3  Pydantic + graph
+conftest verify -p policies/opa                                                              # 4a policy unit tests → 15/15
+conftest test --combine -p policies/opa examples/manifests/site-home.yaml                    # 4b ONE manifest per run
+conftest test --combine -p policies/opa examples/manifests/multi-site-failover.yaml          # 4c  (pooling both = dup composite keys)
+T=$(mktemp -d) && cp examples/opentofu/*.tf "$T" && ( cd "$T" && tofu init && tofu validate )  # 5  OpenTofu (copy out so init never writes .terraform/ into the generated-artifacts dir)
 ```
 
-Toolchain validated against: Python 3.12 / pydantic 2.13.4, jsonschema 4.26.0, PyYAML 6.0.3, conftest 0.56.0 (OPA 0.69.0), OpenTofu 1.9.0 (bpg/proxmox 0.108.0), yamllint 1.38.0.
+Toolchain validated against (now **pinned & committed** — Python tools in `pyproject.toml`/`uv.lock`, CLIs in `.mise.toml`, interpreter in `.python-version`; see §8): Python 3.12 / pydantic 2.13.4, jsonschema 4.26.0, PyYAML 6.0.3, conftest 0.56.0 (OPA 0.69.0), OpenTofu 1.9.0 (bpg/proxmox 0.108.0), yamllint 1.38.0.
+
+---
+
+## 8. Post-build change log
+
+Append-only record of changes made to the pack _after_ the original build session (§2). Newest first. Schema/policy/example contracts are untouched unless an entry says so.
+
+### 2026-06-02 — Committed, reproducible validation toolchain (commit `9875018`)
+
+Promoted the toolchain from the ephemeral build environment (binaries in `/home/claude/bin`, Python tools installed ad hoc) into committed, reproducible manifests. **Tooling only — no schema, policy, or example file changed.**
+
+| File | Role |
+| --- | --- |
+| `pyproject.toml` | Python validators. Non-package (`[tool.uv] package = false`); PEP 735 `[dependency-groups] dev` exact-pins `pydantic==2.13.4`, `jsonschema==4.26.0`, `PyYAML==6.0.3`, `yamllint==1.38.0`. `requires-python = ">=3.12"`. |
+| `uv.lock` | Locked transitive resolution (14 packages). |
+| `.python-version` | `3.12` — uv provisions managed CPython 3.12.13. |
+| `.mise.toml` | Non-Python CLIs: `conftest = "0.56.0"` (bundles OPA 0.69.0), `opentofu = "1.9.0"`. |
+
+- **Reproduce on a fresh machine:** `uv sync` (creates a gitignored `.venv`, installs the `dev` group by default) + `mise install`.
+- **Run validation:** §7 — now `uv run …` with no PATH hacks.
+- **Versions are identical** to the §2 known-green baseline; they are now pinned _exactly_ (deliberately not track-latest) because the pack was validated against them. Bump intentionally, then re-run stages 1–4.
+- **Why two manifests:** the split is a language boundary — uv owns the pure-Python validators (resolved + locked), mise owns the compiled Go CLIs (conftest/opentofu) that pip cannot install. Mirrors workstation conventions §1 (mise) / §2 (uv).
+- **Unblocks roadmap §6 Phase 3 #10:** a CI workflow can now install the exact toolchain via `astral-sh/setup-uv` + `jdx/mise-action`.
