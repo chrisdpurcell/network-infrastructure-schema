@@ -54,7 +54,7 @@ These are intentional deviations. Each lists what changed and why, so the decisi
 | Research breadth | Cite a broad source set (≈50 referenced) | Targeted verification of _volatile / detail-critical_ sources only (bpg/proxmox fields, Containerlab schema, NetBox 4.x, Conftest/Trivy invocation); stable standards cited from knowledge | Fetching/reading ~50 URLs would exhaust context for little marginal correctness. Effort was spent where being out-of-date actually breaks the deliverable. Prioritized source list is in report §3. |
 | Conftest invocation | (implied) run policies over the pack | Documented + enforced **one closed-world unit per `conftest` run** (per manifest), not all manifests pooled | `--combine` pools all passed files into one `input`; the two example manifests intentionally re-declare 5 shared fixtures, so pooling creates duplicate composite keys and `resolve()` errors. Per-unit invocation mirrors the Pydantic per-file default and keeps the layers consistent. |
 | `_build/` scripts | (not specified) | `_build/build_schema.py` and `_build/validate_examples.py` shipped as dev helpers, explicitly **not** part of the shipped contract (schema JSON + Pydantic are the contract) | The schema is hand-authored via a Python builder for bracket/comma safety and `$def` reuse; keeping the builder aids reproducibility without implying it's a supported interface. |
-| Schema source of truth | (one schema) | Hand-authored `infra.schema.json` is canonical; Pydantic emits a **parallel** schema via `--emit-schema` | The two serve different masters (portable structural truth vs typed runtime + graph). Neither is derived from the other; semantic sync is a documented invariant (any divergence = bug), not enforced by an automated gate yet (see §4). |
+| Schema source of truth | (one schema) | Hand-authored `infra.schema.json` is canonical; Pydantic emits a **parallel** schema via `--emit-schema` | The two serve different masters (portable structural truth vs typed runtime + graph). Neither is derived from the other; semantic sync is a documented invariant (any divergence = bug), now enforced by the drift gate `_build/check_drift.py` (see §8, 2026-06-03). |
 
 ---
 
@@ -99,6 +99,8 @@ Ordered by dependency and leverage. Each phase is independently shippable. Phase
 2. **Real fixtures.** Replace `.example` domains and representative addressing with the true L3D values; move the fixtures into a `live/` tree validated in `--merge` (whole-repo closed-world) mode.
 3. **Negative-example corpus as tests.** ✅ **DONE** (folded into #1). `examples/invalid/{structural,graph}/` committed and exercised by the drift gate as regression tests.
 
+_Phase 1 fast-follow (extends #1, non-blocking for Phase 2):_ **C3 generative component** — add `polyfactory`-based generation to the drift gate to catch Pydantic-broader drift on field _values_ (not just shape). Needs ~6–8 custom providers + `exclude_none=True` serialization, pending the explicit-`null`-on-optionals modeling decision (§8 2026-06-03). **Remaining Phase 1 work: #2 (real fixtures → `live/`) + this C3 fast-follow.**
+
 ### Phase 2 — Generators (the mapping guides become code)
 
 4. **OpenTofu emitter.** Implement the `proxmox-opentofu-mapping-guide.md` rules as a generator: desired-state → HCL, honoring the VM/LXC field asymmetries and resolving `SecretRef` → `sensitive` variables. Gate output with `tofu validate` in CI; add `tofu plan` against a throwaway Proxmox or a mock when available.
@@ -141,6 +143,7 @@ uv run python python/infra_models.py --check examples/kinds/*.yaml examples/mani
 conftest verify -p policies/opa                                                              # 4a policy unit tests → 15/15
 conftest test --combine -p policies/opa examples/manifests/site-home.yaml                    # 4b ONE manifest per run
 conftest test --combine -p policies/opa examples/manifests/multi-site-failover.yaml          # 4c  (pooling both = dup composite keys)
+uv run python _build/check_drift.py                                                          # 4d  drift gate: schema↔Pydantic structural parity (C1/C2/C4)
 T=$(mktemp -d) && cp examples/opentofu/*.tf "$T" && ( cd "$T" && tofu init && tofu validate )  # 5  OpenTofu (copy out so init never writes .terraform/ into the generated-artifacts dir)
 ```
 
